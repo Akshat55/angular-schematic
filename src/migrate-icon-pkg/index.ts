@@ -179,7 +179,6 @@ function removeIconsAngularImports(modulePath: string, tree: Tree) {
                * or do we need to short circuit 
                */
               if (nextToken || sourceFile.text[end] === ',') {
-                console.log('next Token', nextToken.getText() + sourceFile.text[end]);
                 changes.push(
                   new RemoveChange(sourceFile.fileName, end, ',')
                 );
@@ -226,8 +225,6 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
     if (ts.isConstructorDeclaration(node)) {
       constructorNode = node;
       const constructorText = node.getText();
-      console.log(constructorText);
-
       // Check if IconService is already injected
       if (constructorText.includes('IconService')) {
         iconServiceAlreadyInjected = true;
