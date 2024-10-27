@@ -1,8 +1,8 @@
 import * as ts from 'typescript';
 import * as iconMigration from './icon-angular-migration.json';
-import { SchematicContext, Tree } from '@angular-devkit/schematics';
+import { DirEntry, Tree } from '@angular-devkit/schematics';
 import { strings } from '@angular-devkit/core';
-import { parseFragment, serialize } from 'parse5';
+import { parseFragment } from 'parse5';
 import { getWorkspace } from '@schematics/angular/utility/workspace';
 import {
   Change,
@@ -234,7 +234,7 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
       }
 
       // Check if registerAll is already called
-      if (constructorText.includes('this.iconService.registerAll')) {
+      if (constructorText.includes('iconService.registerAll')) {
         registerAllCalled = true;
         // Retrieve existing array literal expression & append to icon list
         arrayNodes = findArrayLiteralExpression(node);
@@ -265,7 +265,7 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
       classPos,
       `
 constructor(private iconService: IconService) { 
-  this.iconService.registerAll([${iconList.join(', ')}]);
+  iconService.registerAll([${iconList.join(', ')}]);
 }
       `
     ));
@@ -279,7 +279,7 @@ constructor(private iconService: IconService) {
     changes.push(new InsertChange(
       modulePath,
       constructorBodyPos,
-      `this.iconService.registerAll([${iconList.join(', ')}]);`
+      `iconService.registerAll([${iconList.join(', ')}]);`
     ));
   }
 
@@ -305,9 +305,9 @@ constructor(private iconService: IconService) {
 
 
 // Update the specific NgModule for the updated component
-function updateNgModuleForComponent(modulePath: string, icon: IconMetadata, tree: Tree, context: SchematicContext) {
+function updateNgModuleForComponent(modulePath: string, icon: IconMetadata, tree: Tree) {
   if (!tree.exists(modulePath)) {
-    context.logger.error(`Module file not found: ${modulePath}`);
+    console.error(`Module file not found: ${modulePath}`);
     return tree;
   }
 
@@ -318,100 +318,94 @@ function updateNgModuleForComponent(modulePath: string, icon: IconMetadata, tree
   addIconServiceToConstructor(modulePath, icon, tree);
 
 
-  context.logger.info(`Updated module file: ${modulePath}`);
+  console.info(`Updated module file: ${modulePath}`);
   return tree;
 }
 
 
 // Find the corresponding NgModule file for a component and update it
-function findModuleForComponent(tree: Tree, componentPath: string, icon: IconMetadata, context: SchematicContext) {
+function findModuleForComponent(
+  tree: Tree,
+  componentPath: string,
+  modulePaths: string[],
+  icon: IconMetadata
+) {
   const componentDir = componentPath.substring(0, componentPath.lastIndexOf('/'));
 
   // In root, there is nothing to search
   if (!componentDir) {
-    context.logger.error('Root reached, moving on.');
+    console.error('Root reached, moving on.');
     return tree;
   }
 
-  tree.getDir(componentDir).visit(filePath => {
-    if (filePath.endsWith('.module.ts') && !filePath.includes('routing')) {
-      // Check if it's content contains '${appname}.component`
-      const fileBuffer = tree.read(filePath);
-      if (fileBuffer) {
-        const fileContent = fileBuffer.toString('utf-8');
+  modulePaths.forEach(modulePath => {
+    // Check if it's content contains '${appname}.component`
+    const fileBuffer = tree.read(modulePath);
+    if (fileBuffer) {
+      const fileContent = fileBuffer.toString('utf-8');
 
-        const componentToSearch = componentPath.split('/');
-        const fileToSearch = componentToSearch[componentToSearch.length - 1].replace('.html', '');
+      const componentToSearch = componentPath.split('/');
+      const fileToSearch = componentToSearch[componentToSearch.length - 1].replace('.html', '');
 
-        // It exists in module file
-        if (fileContent.includes(fileToSearch)) {
-          context.logger.info(`Component found in: ${componentPath}, size: ${icon.size}`);
-          return updateNgModuleForComponent(filePath, icon, tree, context);
-        } else {
-          // Travel up the parent dir
-          context.logger.info(`Module files do not import the component ${componentPath}. Attempting to look into parent directory.`);
-          return findModuleForComponent(tree, componentDir, icon, context);
-        }
+      // It exists in module file
+      if (fileContent.includes(fileToSearch)) {
+        console.info(`Component found in: ${componentPath}, size: ${icon.size}`);
+        updateNgModuleForComponent(modulePath, icon, tree);
       }
+    }
+  })
+}
+
+function findModuleFiles(tree: DirEntry): string[] {
+  const modulePaths: string[] = [];
+
+  tree.visit(filePath => {
+    if (filePath.endsWith('.module.ts') && !filePath.includes('routing')) {
+      modulePaths.push(filePath);
     }
   });
 
-  return tree;
+  return modulePaths;
 }
 
 // Function to recursively replace HTML 
 function replaceHtmlTags(
   element: Element,
-  replacements: { [key: string]: string },
-  context: SchematicContext,
   srcTree: Tree,
-  filePath: string
+  filePath: string,
+  modulePaths: string[]
 ) {
   // If the tag exists, we replace!
-  if (replacements[element.tagName]) {
-    const iconKeyValue = (replacements[element.tagName]).split('/');
+  if (replacementMap[element.tagName]) {
+    const iconKeyValue = (replacementMap[element.tagName]).split('/');
     const ibmIconValue = iconKeyValue[iconKeyValue.length - 2];
 
     const icon: IconMetadata = {
       name: ibmIconValue,
       size: "16",
-      path: replacements[element.tagName]
+      path: replacementMap[element.tagName]
     };
-
-    element.tagName = 'svg';
-    element.attrs.push({ 'name': 'ibmIcon', 'value': ibmIconValue });
-
     // Track back to module and add it to module
-    findModuleForComponent(srcTree, filePath, icon, context);
-  } else if (element.tagName === "div" || element.tagName === "svg") {  // Check the element attributes to see if the icon directive isn't used
-    element.attrs.some((attr, index) => {
-      // Directive found, replace
-      if (replacements[attr.name.toLowerCase()]) {
-        const iconKeyValue = (replacements[attr.name.toLowerCase()]).split('/');
-        const ibmIconValue = iconKeyValue[iconKeyValue.length - 2];
-        // Convert tag to svg + use ibmIcon directive.
 
-        const icon: IconMetadata = {
-          name: ibmIconValue,
-          size: "16",
-          path: replacements[attr.name.toLowerCase()]
-        };
+    const oldIconTag = new RegExp(`<${element.tagName}(.*?)>`, 'g');
+    let sourceText = srcTree.read(filePath)?.toString('utf-8') || '';
 
-        element.tagName = "svg";
-        element.attrs[index].name = "ibmIcon";
-        element.attrs[index].value = ibmIconValue;
+    sourceText = sourceText.replace(oldIconTag, (_, attributes) => {
+      return `<svg ibmIcon="${ibmIconValue}" ${attributes}>`;
+    });
 
-        // Track back to module and add it to module
-        findModuleForComponent(srcTree, filePath, icon, context);
-      }
-    })
+    sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
+    srcTree.overwrite(filePath, sourceText);
+
+    console.log(`${element.tagName} replaced in ${filePath}`);
+    findModuleForComponent(srcTree, filePath, modulePaths, icon);
   }
 
   // Recursively go through all nodes & as long as it isn't text, replace!
   if (element.childNodes) {
     element.childNodes.forEach((child: any) => {
       if (child.nodeName !== '#text') {
-        replaceHtmlTags(child, replacements, context, srcTree, filePath);
+        replaceHtmlTags(child, srcTree, filePath, modulePaths);
       }
     });
   }
@@ -420,15 +414,18 @@ function replaceHtmlTags(
 
 
 // Rule entry
-export function migrateIconPkg() {
-  return async (tree: Tree, context: SchematicContext) => {
+export function migrateIconPkg(options: any) {
+  return async (tree: Tree) => {
 
     const workspace = await getWorkspace(tree);
-    const project = workspace.projects.get('IconsMigrationtest');
+    const project = workspace.projects.get(options.project);
 
+    console.log('srcRoot is', project?.sourceRoot);
     if (project?.sourceRoot) {
       // Get directory to start searching for the templates in
       const srcTree = tree.getDir(project.sourceRoot);
+
+      const moduleFilePaths = findModuleFiles(srcTree);
 
       // Modify all HTML files in the tree
       srcTree.visit(filePath => {
@@ -439,15 +436,20 @@ export function migrateIconPkg() {
             const fileContent = fileBuffer.toString('utf-8');
 
             // Parse the HTML using parse5
-            const document = parseFragment(fileContent) as Element;
+            const document = parseFragment(fileContent, { sourceCodeLocationInfo: true }) as Element;
             // Start parsing the template from root
-            replaceHtmlTags(document, replacementMap, context, tree, filePath);
+            replaceHtmlTags(
+              document,
+              tree,
+              filePath,
+              moduleFilePaths
+            );
 
             // Serialize the modified HTML back to string
-            const modifiedContent = serialize(document);
+            // const modifiedContent = serialize(document);
 
             // Overwrite the file with modified content
-            tree.overwrite(filePath, modifiedContent);
+            // tree.overwrite(filePath, modifiedContent);
           }
         }
       });
