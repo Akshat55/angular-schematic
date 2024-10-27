@@ -3,7 +3,8 @@
   "schematics": {
     "migrate-icon-pkg": {
       "description": "A blank schematic.",
-      "factory": "./migrate-icon-pkg/index#migrateIconPkg"
+      "factory": "./migrate-icon-pkg/index#migrateIconPkg",
+      "schema": "./migrate-icon-pkg/schema.json"
     }
   }
 }
