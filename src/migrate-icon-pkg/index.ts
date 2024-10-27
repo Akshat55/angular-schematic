@@ -346,7 +346,6 @@ function findModuleForComponent(
 
       // It exists in module file
       if (fileContent.includes(fileToSearch)) {
-        console.info(`Component found in: ${componentPath}, size: ${icon.size}`);
         updateNgModuleForComponent(modulePath, icon, tree);
       }
     }
