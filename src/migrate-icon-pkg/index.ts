@@ -215,6 +215,7 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
   let arrayNodes: ts.Expression[] = [];
   let iconServiceAlreadyInjected = false;
   let registerAllCalled = false;
+  let registerAllExistsAndIconToAddExists = false;
 
   // Extract icon names from the replacement map for the registerAll call
   const classifiedIcon = strings.classify(icon.name + icon.size);
@@ -237,8 +238,11 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
         // Retrieve existing array literal expression & append to icon list
         arrayNodes = findArrayLiteralExpression(node);
         arrayNodes?.forEach(node => {
-          if (node.getText().trim() !== classifiedIcon)
+          if (node.getText().trim() !== classifiedIcon) {
             iconList.add(node.getText().trim());
+          } else {
+            registerAllExistsAndIconToAddExists = true;
+          }
         });
       }
     }
@@ -279,7 +283,7 @@ constructor(private iconService: IconService) {
     ));
   }
 
-  if (constructorNode && registerAllCalled) {
+  if (constructorNode && registerAllCalled && !registerAllExistsAndIconToAddExists) {
     const arrayStartPos = arrayNodes[0].getStart();
     changes.push(new InsertChange(
       modulePath,
@@ -447,7 +451,7 @@ function createModuleFileIfNotExist(dirTree: DirEntry, tree: Tree, sourceRoot: s
     }
   });
 
-  if(!declarationFileExists) {
+  if (!declarationFileExists) {
     tree.create(`${sourceRoot}/module.d.ts`, `\ndeclare module '@carbon/icons/*';\n`);
   }
 }
