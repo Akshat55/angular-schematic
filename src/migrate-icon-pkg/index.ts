@@ -393,8 +393,34 @@ function replaceHtmlTags(
     sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
     srcTree.overwrite(filePath, sourceText);
 
-    console.log(`${element.tagName} replaced in ${filePath}`);
+    // console.log(`${element.tagName} replaced in ${filePath}`);
     findModuleForComponent(srcTree, filePath, modulePaths, icon);
+  } else if (element.tagName === "div" || element.tagName === "svg") {  // Check the element attributes to see if the icon directive isn't used
+    element.attrs.some((attr) => {
+      // Directive found, replace
+      if (replacementMap[attr.name.toLowerCase()]) {
+        const iconKeyValue = (replacementMap[attr.name.toLowerCase()]).split('/');
+        const ibmIconValue = iconKeyValue[iconKeyValue.length - 2];
+        // Convert tag to svg + use ibmIcon directive.
+
+        const icon: IconMetadata = {
+          name: ibmIconValue,
+          size: "16",
+          path: replacementMap[attr.name.toLowerCase()]
+        };
+
+        const oldIconTag = new RegExp(`${attr.name}`, 'gi');
+        let sourceText = srcTree.read(filePath)?.toString('utf-8') || '';
+    
+        sourceText = sourceText.replace(oldIconTag, `ibmIcon="${ibmIconValue}"`);
+    
+        // sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
+        srcTree.overwrite(filePath, sourceText);
+
+        // Track back to module and add it to module
+        findModuleForComponent(srcTree, filePath, modulePaths, icon);
+      }
+    })
   }
 
   // Recursively go through all nodes & as long as it isn't text, replace!
@@ -416,7 +442,7 @@ export function migrateIconPkg(options: any) {
     const workspace = await getWorkspace(tree);
     const project = workspace.projects.get(options.project);
 
-    console.log('srcRoot is', project?.sourceRoot);
+    // console.log('srcRoot is', project?.sourceRoot);
     if (project?.sourceRoot) {
       // Get directory to start searching for the templates in
       const srcTree = tree.getDir(project.sourceRoot);
