@@ -218,7 +218,8 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
 
   // Extract icon names from the replacement map for the registerAll call
   const classifiedIcon = strings.classify(icon.name + icon.size);
-  const iconList = [classifiedIcon];
+  const iconList = new Set<string>();
+  iconList.add(classifiedIcon);
 
   // Find the constructor and class nodes
   nodes.forEach((node: ts.Node) => {
@@ -237,7 +238,7 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
         arrayNodes = findArrayLiteralExpression(node);
         arrayNodes?.forEach(node => {
           if (node.getText().trim() !== classifiedIcon)
-            iconList.push(node.getText().trim());
+            iconList.add(node.getText().trim());
         });
       }
     }
@@ -262,7 +263,7 @@ function addIconServiceToConstructor(modulePath: string, icon: IconMetadata, tre
       classPos,
       `
 constructor(private iconService: IconService) { 
-  iconService.registerAll([${iconList.join(', ')}]);
+  iconService.registerAll([${Array.from(iconList).join(', ')}]);
 }
       `
     ));
@@ -271,19 +272,15 @@ constructor(private iconService: IconService) {
   // If the constructor exists but registerAll is not called, add the registerAll call
   if (constructorNode && !registerAllCalled) {
     const constructorBodyPos = constructorNode.getEnd() - 1;
-    // Read content of the list
-
     changes.push(new InsertChange(
       modulePath,
       constructorBodyPos,
-      `iconService.registerAll([${iconList.join(', ')}]);`
+      `iconService.registerAll([${Array.from(iconList).join(', ')}]);`
     ));
   }
 
   if (constructorNode && registerAllCalled) {
     const arrayStartPos = arrayNodes[0].getStart();
-    // Read content of the list
-
     changes.push(new InsertChange(
       modulePath,
       arrayStartPos,
@@ -387,7 +384,7 @@ function replaceHtmlTags(
     let sourceText = srcTree.read(filePath)?.toString('utf-8') || '';
 
     sourceText = sourceText.replace(oldIconTag, (_, attributes) => {
-      return `<svg ibmIcon="${ibmIconValue}" ${attributes}>`;
+      return `<svg ibmIcon="${ibmIconValue}"${attributes}>`;
     });
 
     sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
@@ -411,9 +408,9 @@ function replaceHtmlTags(
 
         const oldIconTag = new RegExp(`${attr.name}`, 'gi');
         let sourceText = srcTree.read(filePath)?.toString('utf-8') || '';
-    
+
         sourceText = sourceText.replace(oldIconTag, `ibmIcon="${ibmIconValue}"`);
-    
+
         // sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
         srcTree.overwrite(filePath, sourceText);
 
@@ -434,6 +431,27 @@ function replaceHtmlTags(
 }
 
 
+function createModuleFileIfNotExist(dirTree: DirEntry, tree: Tree, sourceRoot: string) {
+  let declarationFileExists = false;
+  dirTree.visit(filePath => {
+    if (filePath.endsWith('.d.ts')) {
+      declarationFileExists = true;
+      const fileBuffer = tree.read(filePath);
+      if (fileBuffer) {
+        let fileContent = fileBuffer.toString('utf-8');
+        if (!fileContent.includes('@carbon/icons')) {
+          fileContent += "\ndeclare module '@carbon/icons/*';\n";
+          tree.overwrite(filePath, fileContent);
+        }
+      }
+    }
+  });
+
+  if(!declarationFileExists) {
+    tree.create(`${sourceRoot}/module.d.ts`, `\ndeclare module '@carbon/icons/*';\n`);
+  }
+}
+
 
 // Rule entry
 export function migrateIconPkg(options: any) {
@@ -448,6 +466,9 @@ export function migrateIconPkg(options: any) {
       const srcTree = tree.getDir(project.sourceRoot);
 
       const moduleFilePaths = findModuleFiles(srcTree);
+
+      // Create module file if it doesn't already exit
+      createModuleFileIfNotExist(srcTree, tree, project.sourceRoot);
 
       // Modify all HTML files in the tree
       srcTree.visit(filePath => {
@@ -466,12 +487,6 @@ export function migrateIconPkg(options: any) {
               filePath,
               moduleFilePaths
             );
-
-            // Serialize the modified HTML back to string
-            // const modifiedContent = serialize(document);
-
-            // Overwrite the file with modified content
-            // tree.overwrite(filePath, modifiedContent);
           }
         }
       });
