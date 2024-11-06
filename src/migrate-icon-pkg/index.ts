@@ -377,18 +377,25 @@ function replaceHtmlTags(
     const iconKeyValue = (replacementMap[element.tagName]).split('/');
     const ibmIconValue = iconKeyValue[iconKeyValue.length - 2];
 
+    let size = "16";
+    element.attrs.forEach(attr => {
+      if(attr.name.toLowerCase() === "size") {
+        size = attr.value;
+      }
+    })
+
     const icon: IconMetadata = {
       name: ibmIconValue,
-      size: "16",
+      size,
       path: replacementMap[element.tagName]
     };
     // Track back to module and add it to module
 
-    const oldIconTag = new RegExp(`<${element.tagName}(.*?)>`, 'g');
+    const oldIconTag = new RegExp(`<${element.tagName}(.*?)`, 'g');
     let sourceText = srcTree.read(filePath)?.toString('utf-8') || '';
 
     sourceText = sourceText.replace(oldIconTag, (_, attributes) => {
-      return `<svg ibmIcon="${ibmIconValue}"${attributes}>`;
+      return `<svg ibmIcon="${ibmIconValue}"${attributes}`;
     });
 
     sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
@@ -397,6 +404,12 @@ function replaceHtmlTags(
     // console.log(`${element.tagName} replaced in ${filePath}`);
     findModuleForComponent(srcTree, filePath, modulePaths, icon);
   } else if (element.tagName === "div" || element.tagName === "svg") {  // Check the element attributes to see if the icon directive isn't used
+    let size = "16";
+    element.attrs.forEach(attr => {
+      if(attr.name.toLowerCase() === "size") {
+        size = attr.value;
+      }
+    })
     element.attrs.some((attr) => {
       // Directive found, replace
       if (replacementMap[attr.name.toLowerCase()]) {
@@ -406,7 +419,7 @@ function replaceHtmlTags(
 
         const icon: IconMetadata = {
           name: ibmIconValue,
-          size: "16",
+          size: size,
           path: replacementMap[attr.name.toLowerCase()]
         };
 
