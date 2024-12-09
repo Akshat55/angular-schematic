@@ -1,0 +1,22 @@
+{
+    "$schema": "http://json-schema.org/schema",
+    "$id": "dashboard-component",
+    "title": "Orderhub dashboard component schema",
+    "$comment": "This is an extension of @schematics/angular component schematic with displayBlock:false, inlineStyle:false, style:scss, skipSelector:false, flat:false",
+    "type": "object",
+    "properties": {
+        "path": {
+            "type": "string",
+            "format": "path",
+            "description": "The path at which to create the component file, relative to the current workspace. By default, a folder with the same name as the component is created under '<the project>/src/app' and used as the path."
+        },
+        "project": {
+            "type": "string",
+            "description": "The name of the project.",
+            "$default": {
+                "$source": "projectName"
+            }
+        }
+    }
+  }
+  

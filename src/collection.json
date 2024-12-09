@@ -2,9 +2,14 @@
   "$schema": "../node_modules/@angular-devkit/schematics/collection-schema.json",
   "schematics": {
     "migrate-icon-pkg": {
-      "description": "A blank schematic.",
+      "description": "Migrate Icons package",
       "factory": "./migrate-icon-pkg/index#migrateIconPkg",
       "schema": "./migrate-icon-pkg/schema.json"
+    },
+    "migreate-carbon-pkg": {
+      "description": "Migrate Carbon packages",
+      "factory": "./migrate-carbon-pkg/index#migrateCarbonPkg",
+      "schema": "./migrate-carbon-pkg/schema.json"
     }
   }
 }
