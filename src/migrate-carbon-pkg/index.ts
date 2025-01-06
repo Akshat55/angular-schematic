@@ -1,14 +1,23 @@
-import { Tree } from '@angular-devkit/schematics';
+import * as ts from 'typescript';
+import { DirEntry, Tree } from '@angular-devkit/schematics';
 import { getWorkspace } from '@schematics/angular/utility/workspace';
+import { addImportToModule } from '@schematics/angular/utility/ast-utils';
+import { InsertChange } from '@schematics/angular/utility/change';
 
 const importReplacementMap: { [key: string]: string } = {
   'variables': 'variables',
-  '@carbon/themes/scss/index': '@carbon/styles/scss/theme',
-  '@carbon/themes/scss/themes': '@carbon/themes/scss/themes',
-  '@carbon/type/scss/*': '@carbon/styles/scss/type'
+  '@carbon/themes/scss/index': '@carbon/themes',
+  '@carbon/themes/scss/themes': '@carbon/themes',
+  '@carbon/type/scss/type': '@carbon/type',
+  '@carbon/colors/scss/colors': '@carbon/colors',
+  '@carbon/colors/scss/index': '@carbon/colors',
+  '@carbon/layout/scss/layout': '@carbon/layout',
+  'carbon-components/scss/globals/scss/typography': '@carbon/styles/scss/type',
+  'carbon-components/scss/globals/scss/layout': '@carbon/styles/scss/spacing'
 };
 
 const tokenReplacementMap: { [key: string]: string } = {
+  // Type
   "body-short-01": "body-compact-01",
   "body-short-02": "body-compact-02",
   "body-long-01": "body-01",
@@ -22,6 +31,14 @@ const tokenReplacementMap: { [key: string]: string } = {
   "productive-heading-05": "heading-05",
   "productive-heading-06": "heading-06",
   "productive-heading-07": "heading-07",
+  // Mixins type
+  "carbon--type-style": "type-style",
+  "carbon--type-size": "type-size",
+  "carbon--type-scale": "type-scale",
+  "carbon--type-classes": "type-classs",
+  "carbon--type-reset": "type-reset",
+  "carbon--type-weight": "type-weight",
+  // Theme
   "active-danger": "button-danger-active",
   "active-light-ui": "layer-active-02",
   "active-primary": "button-primary-active",
@@ -64,6 +81,7 @@ const tokenReplacementMap: { [key: string]: string } = {
   "ui-03": "layer-accent-01",
   "ui-04": "border-subtle-01",
   "ui-05": "border-inverse",
+  // Layout
   "carbon--spacing-01": "spacing-01",
   "carbon--spacing-02": "spacing-02",
   "carbon--spacing-03": "spacing-03",
@@ -92,8 +110,190 @@ const tokenReplacementMap: { [key: string]: string } = {
   "layout-04": "spacing-09",
   "layout-05": "spacing-10",
   "layout-06": "spacing-12",
-  "layout-07": "spacing-13"
+  "layout-07": "spacing-13",
+  // Colors
+  "carbon--gray-": "gray-",
+  "carbon--white-": "white-",
+  "carbon--red-": "red-",
+  "carbon--purple-": "purple-",
+  "carbon--blue-": "blue-",
+  "carbon--green-": "green-",
+  "carbon--magenta-": "magenta-",
+  "carbon--orange-": "orange-",
+  "carbon--teal-": "teal-",
+  "carbon--yellow-": "yellow-",
+  "carbon--black-": "black-",
+  "carbon--warm-gray-": "warm-gray-",
+  "carbon--cool-gray-": "cool-gray-",
+  "ibm-color__white-": "white-",
+  "ibm-color__red-": "red-",
+  "ibm-color__gray-": "gray-",
+  "ibm-color__green-": "green-",
+  "ibm-color__blue-": "blue-",
+  "ibm-color__cool-gray-": "cool-gray-",
+  // Component specific customization token
+  "danger-01": "red-60",
+  "visited-link": "link-visited"
 };
+
+function getReplacementImport(original: string, useForward: boolean = false, noNamespace: boolean = false): string {
+  let replacement = '';
+
+  const keys = Object.keys(importReplacementMap);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const tokenRegex = new RegExp(`${key}`, 'gm');
+    if (tokenRegex.test(original)) {
+      replacement = importReplacementMap[key];
+      i = keys.length;
+    }
+  };
+
+  // Will need to look at it manually
+  if (replacement === "") {
+    return original;
+  }
+
+  return `${useForward ? '@forward' : '@use'} '${replacement}'${noNamespace ? ' as *' : ''};`;
+}
+
+// Visit the asset directory that is parellel to src directory. The name of the file should be `variables.scss`. 
+// Replace @import statements to `@forward`
+function replaceStylesInAssets(tree: Tree, assetsPath: string) {
+  const assetDir = tree.getDir(assetsPath);
+  assetDir.visit(filePath => {
+    if (filePath.endsWith("variables.scss")) {
+      const fileBuffer = tree.read(filePath);
+      if (fileBuffer) {
+        const fileContent = fileBuffer.toString('utf-8');
+        // Replace all @import statements with @forward
+        const importRegex = /@import\s+(['"])(.*?)\1\s*;?/g;
+        if (importRegex.test(fileContent)) {
+          const updatedContent = fileContent.replace(importRegex, (original, _) => {
+            return getReplacementImport(original, true);
+          });
+          tree.overwrite(filePath, updatedContent);
+        }
+      }
+    }
+  });
+}
+
+function replaceTokens(srcTree: DirEntry, tree: Tree) {
+  srcTree.visit(filePath => {
+    // Check only component scss files
+    if (filePath.endsWith('.scss')) {
+      Object.keys(importReplacementMap).forEach(_ => {
+        const fileBuffer = tree.read(filePath);
+        if (fileBuffer) {
+          const fileContent = fileBuffer.toString('utf-8');
+          // Match @import 'variables' or @import "variables" with optional semicolon
+          const importRegex = /@import\s+(['"])(.*?)\1\s*;?/g;
+
+          if (importRegex.test(fileContent)) {
+            // Replace with new @use syntax
+            const updatedContent = fileContent.replace(importRegex, (original, _) => {
+              return getReplacementImport(original, false, true);
+            });
+            tree.overwrite(filePath, updatedContent);
+          }
+        }
+      });
+
+      Object.keys(tokenReplacementMap).forEach(key => {
+        const fileBuffer = tree.read(filePath);
+        if (fileBuffer) {
+          const fileContent = fileBuffer.toString('utf-8');
+          const tokenRegex = new RegExp(`${key}`, 'gm');
+
+          if (tokenRegex.test(fileContent)) {
+            const updatedContent = fileContent.replace(tokenRegex, `${tokenReplacementMap[key]}`);
+            tree.overwrite(filePath, updatedContent);
+          }
+        }
+      });
+    }
+  });
+}
+
+function replaceCarbonPrefix(srcTree: DirEntry, tree: Tree) {
+  srcTree.visit(filePath => {
+    // Check only component scss files
+    if (filePath.endsWith('.scss') || filePath.endsWith(".html")) {
+      const fileBuffer = tree.read(filePath);
+      if (fileBuffer) {
+        const fileContent = fileBuffer.toString('utf-8');
+        const prefixRegex = new RegExp(`bx--`, 'g');
+
+        if (prefixRegex.test(fileContent)) {
+          const updatedContent = fileContent.replace(prefixRegex, `cds--`);
+          tree.overwrite(filePath, updatedContent);
+        }
+      }
+    }
+  });
+}
+
+function importBucFeatureModule(srcTree: DirEntry, tree: Tree) {
+  srcTree.visit(filePath => {
+    if (filePath.endsWith('app.module.ts')) {
+      const sourceText = tree.read(filePath)?.toString('utf-8') || '';
+      const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
+
+      const recorder = tree.beginUpdate(filePath);
+
+      // Add IconModule to the imports array in the NgModule
+      const moduleImportChange = addImportToModule(sourceFile, filePath, 'BucFeatureComponentsModule', '@buc/common-components');
+      moduleImportChange.forEach(change => {
+        if (change instanceof InsertChange) {
+          recorder.insertLeft(change.pos, change.toAdd);
+        }
+      });
+
+      tree.commitUpdate(recorder);
+    }
+  });
+}
+
+function importLayerModule(srcTree: DirEntry, tree: Tree) {
+  srcTree.visit(filePath => {
+    if (filePath.endsWith('app.module.ts')) {
+      const sourceText = tree.read(filePath)?.toString('utf-8') || '';
+      const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
+
+      const recorder = tree.beginUpdate(filePath);
+
+      // Add IconModule to the imports array in the NgModule
+      const moduleImportChange = addImportToModule(sourceFile, filePath, 'LayerModule', 'carbon-components-angular');
+      moduleImportChange.forEach(change => {
+        if (change instanceof InsertChange) {
+          recorder.insertLeft(change.pos, change.toAdd);
+        }
+      });
+
+      tree.commitUpdate(recorder);
+    }
+
+    if(filePath.endsWith('app.component.html')) {
+      const fileBuffer = tree.read(filePath);
+      if (fileBuffer) {
+        const fileContent = fileBuffer.toString('utf-8');
+        const placeholderRegex = new RegExp('\<ibm\-placeholder\>', 'g');
+        const routerOutletWrapperRegex = new RegExp('class="app-body-content"');
+
+        if (placeholderRegex.test(fileContent) && !fileContent.includes('<ibm-placeholder cdsLayer>')) {
+          const updatedContent = fileContent.replace(placeholderRegex, `<ibm-placeholder cdsLayer>`);
+          tree.overwrite(filePath, updatedContent);
+        }
+
+        if(routerOutletWrapperRegex.test(fileContent) && !fileContent.includes('class="app-body-content" cdsLayer')) {
+          const updatedContent = fileContent.replace(routerOutletWrapperRegex, 'class="app-body-content" cdsLayer');
+          tree.overwrite(filePath, updatedContent);
+        }
+      }
+    }
+  });
+}
 
 // Rule entry
 export function migrateCarbonPkg(options: any) {
@@ -102,62 +302,29 @@ export function migrateCarbonPkg(options: any) {
     const workspace = await getWorkspace(tree);
     const project = workspace.projects.get(options.project);
 
-    // console.log('srcRoot is', project?.sourceRoot);
     if (project?.sourceRoot) {
       // Get directory to start searching for the templates in
       const srcTree = tree.getDir(project.sourceRoot);
 
-      // Visit the asset directory that is parellel to src directory. The name of the file should be `variables.scss`. Replace @import statements to `@use`
-      const assetsPath = project.sourceRoot.replace('/src', '/assets/variables.scss');
-      if (tree.exists(assetsPath)) {
-        const fileBuffer = tree.read(assetsPath);
-        if (fileBuffer) {
-          const fileContent = fileBuffer.toString('utf-8');
-          // Replace all @import statements with @use
-          const importRegex = /@import\s+(['"])(.*?)\1\s*;?/g;
-          const updatedContent = fileContent.replace(importRegex, '@use "$2" as *');
-          tree.overwrite(assetsPath, updatedContent);
-        }
+      const isShared = project.sourceRoot.includes('-shared');
+      const assetReplacement = isShared ? '/assets' : '/src/assets';
+
+      // Replace content in assets dir
+      const assetsPath = project.sourceRoot.replace('/src', assetReplacement);
+      replaceStylesInAssets(tree, assetsPath);
+      replaceTokens(tree.getDir(assetsPath), tree);
+      replaceCarbonPrefix(tree.getDir(assetsPath), tree);
+
+      // Replace content in src dir
+      replaceTokens(srcTree, tree);
+      replaceCarbonPrefix(srcTree, tree);
+
+      if (!isShared) {
+        importBucFeatureModule(srcTree, tree);
+        importLayerModule(srcTree, tree);
       }
-
-      srcTree.visit(filePath => {
-        // Check only component scss files
-        if (filePath.endsWith('.scss')) {
-          const fileBuffer = tree.read(filePath);
-          if (fileBuffer) {
-            const fileContent = fileBuffer.toString('utf-8');
-
-            Object.keys(importReplacementMap).forEach(key => {
-              // Match @import 'variables' or @import "variables" with optional semicolon
-              const importRegex = new RegExp(`@import\\s+(['"])${key}\\0\\s*;?`, 'g');
-
-              if (importRegex.test(fileContent)) {
-                // Replace with new @use syntax
-                const updatedContent = fileContent.replace(importRegex, `@use 'variables' as *`);
-                tree.overwrite(filePath, updatedContent);
-              }
-            });
-
-
-            Object.keys(tokenReplacementMap).forEach(key => {
-              const tokenRegex = new RegExp(`$${key}\\0`, 'g');
-              if (tokenRegex.test(fileContent)) {
-                const updatedContent = fileContent.replace(tokenRegex, `$${tokenReplacementMap[key]}`);
-                tree.overwrite(filePath, updatedContent);
-              }
-            });
-          }
-        }
-      });
     }
 
     return tree;
   };
 }
-
-
-/**
-1. Search for assets & use the new syntax
-2. Update styles.scss
-3. Update all *.component.scss files to `@use 'variables' as *` if `@import 'variables'` exist
- */

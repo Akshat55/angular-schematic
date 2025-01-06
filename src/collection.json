@@ -6,7 +6,7 @@
       "factory": "./migrate-icon-pkg/index#migrateIconPkg",
       "schema": "./migrate-icon-pkg/schema.json"
     },
-    "migreate-carbon-pkg": {
+    "migrate-carbon-pkg": {
       "description": "Migrate Carbon packages",
       "factory": "./migrate-carbon-pkg/index#migrateCarbonPkg",
       "schema": "./migrate-carbon-pkg/schema.json"
