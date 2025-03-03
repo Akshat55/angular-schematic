@@ -379,7 +379,7 @@ function replaceHtmlTags(
 
     let size = "16";
     element.attrs.forEach(attr => {
-      if(attr.name.toLowerCase() === "size") {
+      if (attr.name.toLowerCase() === "size") {
         size = attr.value;
       }
     })
@@ -403,10 +403,10 @@ function replaceHtmlTags(
 
     // console.log(`${element.tagName} replaced in ${filePath}`);
     findModuleForComponent(srcTree, filePath, modulePaths, icon);
-  } else if (element.tagName === "div" || element.tagName === "svg") {  // Check the element attributes to see if the icon directive isn't used
+  } else if (element.tagName === "div" || element.tagName === "svg") {  // Check the element attributes to see if the icon directive is used
     let size = "16";
     element.attrs.forEach(attr => {
-      if(attr.name.toLowerCase() === "size") {
+      if (attr.name.toLowerCase() === "size") {
         size = attr.value;
       }
     })
@@ -415,8 +415,8 @@ function replaceHtmlTags(
       if (replacementMap[attr.name.toLowerCase()]) {
         const iconKeyValue = (replacementMap[attr.name.toLowerCase()]).split('/');
         const ibmIconValue = iconKeyValue[iconKeyValue.length - 2];
-        // Convert tag to svg + use ibmIcon directive.
 
+        // Convert tag to svg + use ibmIcon directive.
         const icon: IconMetadata = {
           name: ibmIconValue,
           size: size,
@@ -428,7 +428,6 @@ function replaceHtmlTags(
 
         sourceText = sourceText.replace(oldIconTag, `ibmIcon="${ibmIconValue}"`);
 
-        // sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
         srcTree.overwrite(filePath, sourceText);
 
         // Track back to module and add it to module
