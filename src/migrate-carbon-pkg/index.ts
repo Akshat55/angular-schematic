@@ -133,7 +133,15 @@ const tokenReplacementMap: { [key: string]: string } = {
   "ibm-color__cool-gray-": "cool-gray-",
   // Component specific customization token
   "danger-01": "red-60",
-  "visited-link": "link-visited"
+  "visited-link": "link-visited",
+  // Motion
+  "fast-01": "duration-fast-01",
+  "fast-02": "duration-fast-02",
+  "moderate-01": "duration-moderate-01",
+  "moderate-02": "duration-moderate-02",
+  "slow-01": "duration-slow-01",
+  "slow-02": "duration-slow-02",
+  "carbon--easings": "easings",
 };
 
 function getReplacementImport(original: string, useForward: boolean = false, noNamespace: boolean = false): string {
@@ -154,7 +162,11 @@ function getReplacementImport(original: string, useForward: boolean = false, noN
     return original;
   }
 
-  return `${useForward ? '@forward' : '@use'} '${replacement}'${noNamespace ? ' as *' : ''};`;
+  if(useForward) {
+    return `@forward '${replacement}';`;
+  }
+
+  return `@use '${replacement}'${noNamespace ? ' as *' : ''};`;
 }
 
 // Visit the asset directory that is parellel to src directory. The name of the file should be `variables.scss`. 
@@ -274,7 +286,7 @@ function importLayerModule(srcTree: DirEntry, tree: Tree) {
       tree.commitUpdate(recorder);
     }
 
-    if(filePath.endsWith('app.component.html')) {
+    if (filePath.endsWith('app.component.html')) {
       const fileBuffer = tree.read(filePath);
       if (fileBuffer) {
         const fileContent = fileBuffer.toString('utf-8');
@@ -286,7 +298,7 @@ function importLayerModule(srcTree: DirEntry, tree: Tree) {
           tree.overwrite(filePath, updatedContent);
         }
 
-        if(routerOutletWrapperRegex.test(fileContent) && !fileContent.includes('class="app-body-content" cdsLayer')) {
+        if (routerOutletWrapperRegex.test(fileContent) && !fileContent.includes('class="app-body-content" cdsLayer')) {
           const updatedContent = fileContent.replace(routerOutletWrapperRegex, 'class="app-body-content" cdsLayer');
           tree.overwrite(filePath, updatedContent);
         }
