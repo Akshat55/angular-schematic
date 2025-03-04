@@ -1,8 +1,8 @@
 {
     "$schema": "http://json-schema.org/schema",
-    "$id": "dashboard-component",
-    "title": "Orderhub dashboard component schema",
-    "$comment": "This is an extension of @schematics/angular component schematic with displayBlock:false, inlineStyle:false, style:scss, skipSelector:false, flat:false",
+    "$id": "icon-angular-migration",
+    "title": "Migrate from `@carbon/icons-angular` to `@carbon/icons`",
+    "$comment": "This is a one time use schematic to help you migrate to Carbon 11",
     "type": "object",
     "properties": {
         "path": {

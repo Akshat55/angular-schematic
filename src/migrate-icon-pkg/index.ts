@@ -401,7 +401,6 @@ function replaceHtmlTags(
     sourceText = sourceText.replace(new RegExp(`</${element.tagName}>`, 'g'), `</svg>`);
     srcTree.overwrite(filePath, sourceText);
 
-    // console.log(`${element.tagName} replaced in ${filePath}`);
     findModuleForComponent(srcTree, filePath, modulePaths, icon);
   } else if (element.tagName === "div" || element.tagName === "svg") {  // Check the element attributes to see if the icon directive is used
     let size = "16";
