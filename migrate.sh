@@ -7,12 +7,15 @@ fi
 
 parent_dir=$1
 shift
-command="npm run ng -- generate /Users/akshatpatel/Desktop/angular-schematic:migrate-icon-pkg"
+# command="npm run ng -- generate /Users/akshatpatel/Desktop/angular-schematic:migrate-icon-pkg"
+command="npm run ng -- generate /Users/akshatpatel/Desktop/angular-schematic:migrate-carbon-pkg"
 
 cd "$parent_dir"
 
+path=$(pwd) 
+
 # loop through each dierctory and run migration command
-for dir in $parent_dir/packages/*; do
+for dir in $path/packages/*; do
     # check if its a directory
     if [ -d "$dir" ]; then
         echo "Running command in: $dir"

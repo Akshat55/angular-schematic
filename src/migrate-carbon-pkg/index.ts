@@ -162,7 +162,7 @@ function getReplacementImport(original: string, useForward: boolean = false, noN
     return original;
   }
 
-  if(useForward) {
+  if (useForward) {
     return `@forward '${replacement}';`;
   }
 
@@ -307,35 +307,103 @@ function importLayerModule(srcTree: DirEntry, tree: Tree) {
   });
 }
 
+function sortJsonObject(object: any) {
+  return Object.keys(object)
+    .sort()
+    .reduce((sortedObj: Record<string, string>, key: string) => {
+      sortedObj[key] = object[key];
+      return sortedObj;
+    }, {})
+}
+
 // Rule entry
-export function migrateCarbonPkg(options: any) {
+export function migrateCarbonPkg(_: any) {
   return async (tree: Tree) => {
 
     const workspace = await getWorkspace(tree);
-    const project = workspace.projects.get(options.project);
 
-    if (project?.sourceRoot) {
-      // Get directory to start searching for the templates in
-      const srcTree = tree.getDir(project.sourceRoot);
+    // Update styles for each project in monorepo
+    workspace.projects.forEach((project) => {
+      if (project?.sourceRoot) {
+        // Get directory to start searching for the templates in
+        const srcTree = tree.getDir(project.sourceRoot);
 
-      const isShared = project.sourceRoot.includes('-shared');
-      const assetReplacement = isShared ? '/assets' : '/src/assets';
+        const isShared = project.sourceRoot.includes('-shared');
+        const assetReplacement = isShared ? '/assets' : '/src/assets';
 
-      // Replace content in assets dir
-      const assetsPath = project.sourceRoot.replace('/src', assetReplacement);
-      replaceStylesInAssets(tree, assetsPath);
-      replaceTokens(tree.getDir(assetsPath), tree);
-      replaceCarbonPrefix(tree.getDir(assetsPath), tree);
+        // Replace content in assets dir
+        const assetsPath = project.sourceRoot.replace('/src', assetReplacement);
+        replaceStylesInAssets(tree, assetsPath);
+        replaceTokens(tree.getDir(assetsPath), tree);
+        replaceCarbonPrefix(tree.getDir(assetsPath), tree);
 
-      // Replace content in src dir
-      replaceTokens(srcTree, tree);
-      replaceCarbonPrefix(srcTree, tree);
+        // Replace content in src dir
+        replaceTokens(srcTree, tree);
+        replaceCarbonPrefix(srcTree, tree);
 
-      if (!isShared) {
-        importBucFeatureModule(srcTree, tree);
-        importLayerModule(srcTree, tree);
+        if (!isShared) {
+          importBucFeatureModule(srcTree, tree);
+          importLayerModule(srcTree, tree);
+        }
       }
-    }
+    })
+
+    // Update root package.json for project
+    tree.root.subfiles.forEach((filePath) => {
+      if (filePath.endsWith('package.json')) {
+        // read & make an update
+        const packageJsonFile = tree.read(filePath);
+        if (packageJsonFile) {
+          console.log('reading packageJsonFile');
+          const packageJson = JSON.parse(packageJsonFile.toString());
+
+          if (packageJson.dependencies) {
+            packageJson.dependencies = {
+              ...packageJson.dependencies,
+              ...packageJson.dependencies['@carbon/charts-angular'] ? { '@carbon/charts-angular': '1.17.0' } : {},
+              '@carbon/colors': '11.28.0',
+              '@carbon/icons': '11.53.0',
+              '@carbon/layout': '11.28.0',
+              '@carbon/styles': '1.75.0',
+              '@carbon/themes': '11.43.0',
+              '@carbon/type': '11.33.0',
+              '@ngx-translate/core': '14.0.0',
+              '@ngx-translate/http-loader': '7.0.0',
+              'carbon-components-angular': '5.57.3',
+            };
+
+            const dependenciesToRemove = [
+              '@angular-devkit/build-ng-packagr',
+              '@ai-apps/angular',
+              '@carbon/icons-angular',
+              '@cui/toolkit',
+              'carbon-components'
+            ];
+
+            const devDependenciesToRemove = [
+              '@angular-devkit/build-ng-packagr'
+            ];
+
+            dependenciesToRemove.forEach((dependency) => {
+              if (packageJson.dependencies[dependency]) {
+                delete packageJson.dependencies[dependency];
+              }
+            });
+
+            devDependenciesToRemove.forEach((dependency) => {
+              if (packageJson.devDependencies[dependency]) {
+                delete packageJson.devDependencies[dependency];
+              }
+            })
+
+            // Format dependencies to maintain alphabetical order
+            packageJson.dependencies = sortJsonObject(packageJson.dependencies);
+            // Write with 2 spaces indentation
+            tree.overwrite(filePath.toString(), JSON.stringify(packageJson, null, 2));
+          }
+        }
+      }
+    })
 
     return tree;
   };

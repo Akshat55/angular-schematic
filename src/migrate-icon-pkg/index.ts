@@ -469,43 +469,43 @@ function createModuleFileIfNotExist(dirTree: DirEntry, tree: Tree, sourceRoot: s
 
 
 // Rule entry
-export function migrateIconPkg(options: any) {
+export function migrateIconPkg(_: any) {
   return async (tree: Tree) => {
 
     const workspace = await getWorkspace(tree);
-    const project = workspace.projects.get(options.project);
 
-    // console.log('srcRoot is', project?.sourceRoot);
-    if (project?.sourceRoot) {
-      // Get directory to start searching for the templates in
-      const srcTree = tree.getDir(project.sourceRoot);
+    workspace.projects.forEach((project) => {
+      if (project?.sourceRoot) {
+        // Get directory to start searching for the templates in
+        const srcTree = tree.getDir(project.sourceRoot);
 
-      const moduleFilePaths = findModuleFiles(srcTree);
+        const moduleFilePaths = findModuleFiles(srcTree);
 
-      // Create module file if it doesn't already exit
-      createModuleFileIfNotExist(srcTree, tree, project.sourceRoot);
+        // Create module file if it doesn't already exit
+        createModuleFileIfNotExist(srcTree, tree, project.sourceRoot);
 
-      // Modify all HTML files in the tree
-      srcTree.visit(filePath => {
-        // Check only component html files
-        if (filePath.endsWith('component.html')) {
-          const fileBuffer = tree.read(filePath);
-          if (fileBuffer) {
-            const fileContent = fileBuffer.toString('utf-8');
+        // Modify all HTML files in the tree
+        srcTree.visit(filePath => {
+          // Check only component html files
+          if (filePath.endsWith('component.html')) {
+            const fileBuffer = tree.read(filePath);
+            if (fileBuffer) {
+              const fileContent = fileBuffer.toString('utf-8');
 
-            // Parse the HTML using parse5
-            const document = parseFragment(fileContent, { sourceCodeLocationInfo: true }) as Element;
-            // Start parsing the template from root
-            replaceHtmlTags(
-              document,
-              tree,
-              filePath,
-              moduleFilePaths
-            );
+              // Parse the HTML using parse5
+              const document = parseFragment(fileContent, { sourceCodeLocationInfo: true }) as Element;
+              // Start parsing the template from root
+              replaceHtmlTags(
+                document,
+                tree,
+                filePath,
+                moduleFilePaths
+              );
+            }
           }
-        }
-      });
-    }
+        });
+      }
+    })
 
     return tree;
   };
