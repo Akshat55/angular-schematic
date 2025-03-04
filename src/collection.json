@@ -1,15 +1,15 @@
 {
   "$schema": "../node_modules/@angular-devkit/schematics/collection-schema.json",
   "schematics": {
-    "migrate-icon-pkg": {
+    "migrate-icons-angular-pkg": {
       "description": "Migrate Icons package",
-      "factory": "./migrate-icon-pkg/index#migrateIconPkg",
-      "schema": "./migrate-icon-pkg/schema.json"
+      "factory": "./migrate-icons-angular-pkg/index#migrateIconPkg",
+      "schema": "./migrate-icons-angular-pkg/schema.json"
     },
-    "migrate-carbon-pkg": {
+    "migrate-carbon-11-pkg": {
       "description": "Migrate Carbon packages",
-      "factory": "./migrate-carbon-pkg/index#migrateCarbonPkg",
-      "schema": "./migrate-carbon-pkg/schema.json"
+      "factory": "./migrate-carbon-11-pkg/index#migrateCarbonPkg",
+      "schema": "./migrate-carbon-11-pkg/schema.json"
     }
   }
 }
