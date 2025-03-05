@@ -4,18 +4,5 @@
     "title": "Migrate from `@carbon/icons-angular` to `@carbon/icons`",
     "$comment": "This is a one time use schematic to help you migrate to Carbon 11",
     "type": "object",
-    "properties": {
-        "path": {
-            "type": "string",
-            "format": "path",
-            "description": "The path at which to create the component file, relative to the current workspace. By default, a folder with the same name as the component is created under '<the project>/src/app' and used as the path."
-        },
-        "project": {
-            "type": "string",
-            "description": "The name of the project.",
-            "$default": {
-                "$source": "projectName"
-            }
-        }
-    }
+    "properties": {}
 }
